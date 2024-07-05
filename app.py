@@ -18,7 +18,6 @@ df.head()
 
 # main code
 app = dash.Dash(__name__)
-server = app.server
 
 app.layout = html.Div([
     dcc.Graph(id='earthquake-map', style={'width': '100%', 'display': 'inline-block'}),
