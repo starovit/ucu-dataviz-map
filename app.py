@@ -5,6 +5,8 @@ import dash
 import plotly.express as px
 from dash import Dash, html, dcc, Input, Output
 from dash.exceptions import PreventUpdate
+import plotly.graph_objects as go
+import json
 
 # get data
 df1 = pd.read_csv('all_month.csv')
@@ -15,17 +17,68 @@ df1 = df1.sample(1000)
 df1 = df1.reset_index(drop=True)
 df1.head()
 
+
+
+# read data: geojson
+filepath = 'data/ukraine.geojson'
+with open(filepath) as f:
+    geojson_data = json.load(f)
+# read data: main dataframe
+df = pd.read_csv('data/submissions.csv')
+df = df[['submission_date', 'submission_status', 'initiator_region', 'item_amount', 'item_classification']]
+df.columns = ['date', 'status', 'region', 'amount', 'classification']
+df['index'] = df.index
+df.head(3)
+
+# some colors
+category_order = ['approval', 'active', 'pending', 'withdrawn', 'unsuccessful', 'declined']
+colors = ['#34eb4f', '#4f81eb', '#ebcd34', '#eb5834', '#9634eb', '#707070']
+color_map = {status: color for status, color in zip(category_order, colors)}
+reversed_color_map = {color: status for status, color in zip(category_order, colors)}
+class_color_discrete_map = {'kitchen': 'red', 'shelter': 'blue'}
+
 # main code
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    dcc.Graph(id='earthquake-map', style={'width': '100%', 'display': 'inline-block'}),
-    dcc.Graph(id='magnitude-chart', style={'width': '50%', 'display': 'inline-block'}),
-    dcc.Graph(id='date-chart', style={'width': '50%', 'display': 'inline-block'}),
-    dcc.Graph(id='map', style={'width': '100%', 'display': 'inline-block'}),
-    dcc.Graph(id='barchart', style={'width': '50%', 'display': 'inline-block'}),
-    dcc.Graph(id='money_distribution', style={'width': '50%', 'display': 'inline-block'})  # New histogram
+    # First group with a title
+    html.Div([
+        html.H2("Homework 4: Earthquakes", style={'textAlign': 'center', 'font-family': '"Noto Sans Mongolian", sans-serif'}),
+        html.Div([
+            dcc.Graph(id='earthquake-map', style={'width': '100%', 'height': '600px', 'margin': 'auto'})
+        ], style={'display': 'flex', 'justify-content': 'center'}),
+        html.Div([
+            dcc.Graph(id='magnitude-chart', style={'width': '50%', 'display': 'inline-block', 'font-family': '"Noto Sans Mongolian", sans-serif'}),
+            dcc.Graph(id='date-chart', style={'width': '50%', 'display': 'inline-block'})
+        ], style={'display': 'flex', 'justify-content': 'center'})
+    ]),
+
+    # Second group with a title
+    html.Div([
+        html.H2("Final Project: Regional Applications Data", style={'textAlign': 'center'}),
+        html.Div([
+            dcc.RadioItems(
+                id='map-data-choice',
+                options=[
+                    {'label': 'Count', 'value': 'count'},
+                    {'label': 'Money Amount', 'value': 'amount'}
+                ],
+                value='count',
+                style={'textAlign': 'center', 'padding': '10px', 'font-family': '"Noto Sans Mongolian", sans-serif'}
+            ),
+            html.Div([
+                dcc.Graph(id='map', style={'width': '100%', 'height': '600px'})
+            ], style={'flex': '50%'}),
+
+            html.Div([
+                dcc.Graph(id='barchart', style={'width': '100%', 'height': '300px'}),
+                dcc.Graph(id='money_distribution', style={'width': '100%', 'height': '300px'})
+            ], style={'flex': '50%', 'display': 'flex', 'flex-direction': 'column'})
+        ], style={'display': 'flex'})
+    ])
 ])
+
+
 
 # MAP
 @app.callback(
@@ -35,7 +88,7 @@ app.layout = html.Div([
 )
 def update_map(selectedDataMag, selectedDataDate):
     df1_ = df1.copy()
-    
+
     # magnitude selection
     if selectedDataMag and 'points' in selectedDataMag:
         mags = [point['x'] for point in selectedDataMag['points']]
@@ -56,7 +109,7 @@ def update_map(selectedDataMag, selectedDataDate):
         df1_['selection'] =  df1_['selection'].apply(lambda x: 'selected' if x>=1 else 'unselected')
     else:
         df1_['selection'] = 'selected'
-        
+
     fig = px.scatter_mapbox(df1_[df1_['selection'] == 'selected'], lat="latitude", lon="longitude", color="mag",
                             color_continuous_scale=px.colors.cyclical.IceFire,
                             size_max=4, zoom=2, mapbox_style="carto-positron",
@@ -66,7 +119,7 @@ def update_map(selectedDataMag, selectedDataDate):
                           mode='markers',
                           marker=dict(size=10, color='grey', opacity=0.5),
                           name='Unselected')
-    
+
     fig.update_layout(dragmode='lasso')
     return fig
 
@@ -80,13 +133,13 @@ def update_map(selectedDataMag, selectedDataDate):
 def update_mag_chart(selectedDataMap, selectedDataDate):
     df1_ = df1.copy()
     df1_['selection'] = 'unselected'
-    
+
     # map selection
     if selectedDataMap and 'points' in selectedDataMap:
         indexes_map = [point['pointNumber'] for point in selectedDataMap['points']]
     else:
         indexes_map = []
-    
+
     # date selection
     if selectedDataDate and 'points' in selectedDataDate:
         dates = pd.to_datetime([point['x'] for point in selectedDataDate['points']], utc=True)
@@ -94,11 +147,11 @@ def update_mag_chart(selectedDataMap, selectedDataDate):
         indexes_date = df1_[(min_date <= df1_['time']) & (df1_['time'] <= max_date)].index.to_list()
     else:
         indexes_date = []
-    
+
     indexes = list(set(indexes_map).union(set(indexes_date)))
     if len(indexes):
         df1_.loc[indexes, 'selection'] = 'selected'
-    
+
     fig = px.histogram(df1_, x='mag', color='selection',
                        color_discrete_map={'unselected': 'gray', 'selected': 'red'},
                        nbins=100, title="Distribution of Earthquake Magnitudes")
@@ -107,7 +160,7 @@ def update_mag_chart(selectedDataMap, selectedDataDate):
             trace.marker.opacity = 0.5
         else:
             trace.marker.opacity = 0.3
-            
+
     fig.update_layout(dragmode='select')
     return fig
 
@@ -121,13 +174,13 @@ def update_mag_chart(selectedDataMap, selectedDataDate):
 def update_date_chart(selectedDataMap, selectedDataMag):
     df1_ = df1.copy()
     df1_['selection'] = 'unselected'
-    
+
     # map selection
     if selectedDataMap and 'points' in selectedDataMap:
         indexes_map = [point['pointNumber'] for point in selectedDataMap['points']]
     else:
         indexes_map = []
-    
+
     # magnitude selection
     if selectedDataMag and 'points' in selectedDataMag:
         mags = [point['x'] for point in selectedDataMag['points']]
@@ -135,11 +188,11 @@ def update_date_chart(selectedDataMap, selectedDataMag):
         indexes_mag = df1_[(min_mag <= df1_['mag']) & (df1_['mag'] <= max_mag)].index.to_list()
     else:
         indexes_mag = []
-    
+
     indexes = list(set(indexes_map).union(set(indexes_mag)))
     if len(indexes):
         df1_.loc[indexes, 'selection'] = 'selected'
-    
+
     fig = px.histogram(df1_, x='time', color='selection',
                        color_discrete_map={'unselected': 'gray', 'selected': 'red'},
                        nbins=100, title="Distribution of Earthquake Dates")
@@ -148,7 +201,7 @@ def update_date_chart(selectedDataMap, selectedDataMag):
             trace.marker.opacity = 0.5
         else:
             trace.marker.opacity = 0.3
-            
+
     fig.update_layout(dragmode='select')
     return fig
 
@@ -167,44 +220,15 @@ df_regions = pd.DataFrame({
     'value': [0] * len(regions)
 })
 
-import plotly.express as px
-import plotly.graph_objects as go
-import dash
-from dash import Dash, html, dcc, Input, Output
-from dash.exceptions import PreventUpdate
-
-# read data: geojson
-filepath = 'data/ukraine.geojson'
-with open(filepath) as f:
-    geojson_data = json.load(f)
-# read data: main dataframe
-df = pd.read_csv('data/submissions.csv')
-df = df[['submission_date', 'submission_status', 'initiator_region', 'item_amount', 'item_classification']]
-df.columns = ['date', 'status', 'region', 'amount', 'classification']
-df['index'] = df.index
-df.head(3)
-
-# some colors
-category_order = ['approval', 'active', 'pending', 'withdrawn', 'unsuccessful', 'declined']
-colors = ['#34eb4f', '#4f81eb', '#ebcd34', '#eb5834', '#9634eb', '#707070']
-color_map = {status: color for status, color in zip(category_order, colors)}
-reversed_color_map = {color: status for status, color in zip(category_order, colors)}
-class_color_discrete_map = {'kitchen': 'red', 'shelter': 'blue'}
-
-# app = dash.Dash(__name__)
-# app.layout = html.Div([
-#     dcc.Graph(id='map', style={'width': '100%', 'display': 'inline-block'}),
-#     dcc.Graph(id='barchart', style={'width': '50%', 'display': 'inline-block'}),
-#     dcc.Graph(id='money_distribution', style={'width': '50%', 'display': 'inline-block'})  # New histogram
-# ])
-
 # Map count
 @app.callback(
     Output('map', 'figure'),
     [Input('barchart', 'selectedData'),
-     Input('money_distribution', 'selectedData')]
-)
-def update_map(selectedStatus, selectedMoney):
+     Input('money_distribution', 'selectedData'),
+     Input('map-data-choice', 'value')]
+     )
+
+def update_map(selectedStatus, selectedMoney, choice):
     df_ = df.copy()
     if selectedStatus is None:
         pass
@@ -212,14 +236,20 @@ def update_map(selectedStatus, selectedMoney):
         colors = [point['marker.color'] for point in selectedStatus['points']]
         status_list = [reversed_color_map[color] for color in colors]
         df_ = df_[df_['status'].isin(status_list)]
-        
+
     # group
-    df_ = df_.groupby('region').agg({'amount': 'count'}).reset_index()
+    if choice == 'count':
+        bar_data_type = 'Count'
+        df_ = df_[['region', 'amount']].groupby('region').count().reset_index()
+    else:
+        bar_data_type = 'Money Amount'
+        df_ = df_[['region', 'amount']].groupby('region').sum().reset_index()
     df_.columns = ['name', 'value']
     # add empty regions
     missing_regions = ~df_regions['name'].isin(df_['name'])
     missing_df = df_regions[missing_regions]
     df_ = pd.concat([df_, missing_df], ignore_index=True)
+    df_.columns = ['name', bar_data_type]
     # plot map
     map_color_scale = [
         (0.0, 'white'),    # Zero values as grey
@@ -232,7 +262,7 @@ def update_map(selectedStatus, selectedMoney):
     fig = px.choropleth(
         df_,
         locations='name',
-        color='value',
+        color=bar_data_type,
         geojson=geojson_data,
         featureidkey="properties.name",
         color_continuous_scale=map_color_scale,
@@ -241,7 +271,7 @@ def update_map(selectedStatus, selectedMoney):
     fig.update_geos(fitbounds="locations",
                     projection_type="mercator",
                     visible=False)
-    
+
     fig.update_layout(title_x=0.5)
     fig.update_layout(
         autosize=False,
@@ -253,12 +283,10 @@ def update_map(selectedStatus, selectedMoney):
                 autoexpand=True
             ),
             width=800,
-        #     height=400,
     )
     fig.update_layout(dragmode='select')
-    
-    return fig
 
+    return fig
 
 
 # Status chart
@@ -273,9 +301,7 @@ def update_mag_chart(selectedMap):
     else:
         regions = [point['location'] for point in selectedMap['points']]
         df_ = df_[df_['region'].isin(regions)]
-    category_order = ['approval', 'active', 'pending', 'withdrawn', 'unsuccessful', 'declined']
-    colors = ['#34eb4f', '#4f81eb', '#ebcd34', '#eb5834', '#9634eb', '#707070']
-    
+
     df_ = df_.value_counts("status").reset_index()
     df_.columns = ['status', 'count']
     df_['status'] = pd.Categorical(df_['status'], categories=category_order, ordered=True)
@@ -299,8 +325,8 @@ def update_mag_chart(selectedMap):
         title_x=0.5,  # centers the title
     )
     fig.update_layout(dragmode='select')
-    
-    
+
+
     return fig
 
 @app.callback(
@@ -309,18 +335,18 @@ def update_mag_chart(selectedMap):
 )
 def update_money_distribution(selectedMap, selectedStatus):
     df_ = df.copy()
-    
+
     # Filter by regions if any selected on the map
     if selectedMap is not None:
         regions = [point['location'] for point in selectedMap['points']]
         df_ = df_[df_['region'].isin(regions)]
-    
+
     # Filter by statuses if any selected on the barchart
     if selectedStatus is not None:
         colors = [point['marker.color'] for point in selectedStatus['points']]
         status_list = [reversed_color_map[color] for color in colors]
         df_ = df_[df_['status'].isin(status_list)]
-    
+
     # Plot histogram
     fig = px.histogram(
         df_,
