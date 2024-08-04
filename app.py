@@ -16,12 +16,15 @@ df1 = df1.reset_index(drop=True)
 df1.head()
 
 # main code
-app1 = dash.Dash(__name__)
+app = dash.Dash(__name__)
 
-app1.layout = html.Div([
+app.layout = html.Div([
     dcc.Graph(id='earthquake-map', style={'width': '100%', 'display': 'inline-block'}),
     dcc.Graph(id='magnitude-chart', style={'width': '50%', 'display': 'inline-block'}),
     dcc.Graph(id='date-chart', style={'width': '50%', 'display': 'inline-block'}),
+    dcc.Graph(id='map', style={'width': '100%', 'display': 'inline-block'}),
+    dcc.Graph(id='barchart', style={'width': '50%', 'display': 'inline-block'}),
+    dcc.Graph(id='money_distribution', style={'width': '50%', 'display': 'inline-block'})  # New histogram
 ])
 
 # MAP
@@ -56,7 +59,7 @@ def update_map(selectedDataMag, selectedDataDate):
         
     fig = px.scatter_mapbox(df1_[df1_['selection'] == 'selected'], lat="latitude", lon="longitude", color="mag",
                             color_continuous_scale=px.colors.cyclical.IceFire,
-                            size_max=10, zoom=0.1, mapbox_style="carto-positron",
+                            size_max=4, zoom=2, mapbox_style="carto-positron",
                             title="Earthquake Map")
     fig.add_scattermapbox(lat=df1_[df1_['selection'] == 'unselected']['latitude'],
                           lon=df1_[df1_['selection'] == 'unselected']['longitude'],
@@ -188,12 +191,12 @@ color_map = {status: color for status, color in zip(category_order, colors)}
 reversed_color_map = {color: status for status, color in zip(category_order, colors)}
 class_color_discrete_map = {'kitchen': 'red', 'shelter': 'blue'}
 
-app2 = dash.Dash(__name__)
-app2.layout = html.Div([
-    dcc.Graph(id='map', style={'width': '100%', 'display': 'inline-block'}),
-    dcc.Graph(id='barchart', style={'width': '50%', 'display': 'inline-block'}),
-    dcc.Graph(id='money_distribution', style={'width': '50%', 'display': 'inline-block'})  # New histogram
-])
+# app = dash.Dash(__name__)
+# app.layout = html.Div([
+#     dcc.Graph(id='map', style={'width': '100%', 'display': 'inline-block'}),
+#     dcc.Graph(id='barchart', style={'width': '50%', 'display': 'inline-block'}),
+#     dcc.Graph(id='money_distribution', style={'width': '50%', 'display': 'inline-block'})  # New histogram
+# ])
 
 # Map count
 @app.callback(
